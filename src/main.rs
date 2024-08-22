@@ -15,6 +15,10 @@ struct Cli {
     /// Output FASTA file name
     #[arg(short, long)]
     contig: String,
+
+    /// The fasta accession id
+    #[arg(short, long)]
+    accession: String,
 }
 
 
@@ -30,7 +34,7 @@ fn main() -> io::Result<()> {
     let contig_sequence = assemble_contig(records);
 
     // Write the contig sequence to a FASTA file
-    write_fasta(&args.contig, &contig_sequence)?;
+    write_fasta(&args.contig, &args.accession, &contig_sequence)?;
 
     println!("Contig assembled and written to {}", args.contig);
 
@@ -156,9 +160,9 @@ fn build_consensus(contig_reads: &[Record]) -> String {
 
 
 // Function to write the assembled contig to a FASTA file
-fn write_fasta(file_path: &str, contig_sequence: &str) -> io::Result<()> {
+fn write_fasta(file_path: &str, acc:&str, contig_sequence: &str) -> io::Result<()> {
     let mut file = File::create(file_path)?;
-    writeln!(file, ">assembled_contig")?;
+    writeln!(file, ">{}", acc)?;
     writeln!(file, "{}", contig_sequence)?;
 
     Ok(())
