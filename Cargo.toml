@@ -1,0 +1,9 @@
+[package]
+name = "bam_aligner"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.0", features = ["derive"] }
+rust-htslib = "0.43.1"
+
