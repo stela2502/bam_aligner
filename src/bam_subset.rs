@@ -3,18 +3,24 @@ use std::collections::HashSet;
 use std::collections::HashMap;
 use rust_htslib::bam::record::Aux;
 
+use std::thread;
+use rayon::prelude::*;
+use rayon::slice::ParallelSlice;
+
 
 pub struct BamSubset {
     records: HashMap<String, Vec::<Record>>,
     cells: HashSet<String>,
+    num_threads: usize,
 }
 
 impl BamSubset{
     
-    pub fn new() -> Self {
+    pub fn new(num_threads: usize) -> Self {
         Self{
             records: HashMap::new(),
             cells: HashSet::<String>::new(),
+            num_threads,
         }
     }
 
@@ -39,62 +45,64 @@ impl BamSubset{
         self.cells.len()
     }
 
-    pub fn assemble_contigs( &self ) -> Vec<(String, String)> {
-        // 1. Sort the records by their start positions on the reference genome
+    pub fn assemble_contigs( &self ) -> Vec<String> {
 
-        // 2. Initialize an empty fasta vector to hold the consensus sequences (Acc, Seq)
-        let mut consensus_sequence = Vec::<(String, String)>::new();
+        // Collect keys from the HashMap into a Vec
+        let keys: Vec<String> = self.records.keys().cloned().collect();
 
-        // 3. Initialize variables to track the current contig being assembled
-        let mut current_contig_start: i64;
-        let mut current_contig_end = 0;
-        let mut contig_reads = Vec::new();
-        let mut id: usize;
-        // 4. Iterate through sorted records
-        for (cell, records) in &self.records {
-            id = 1;
-            for record in records {
-                let start_pos = record.pos();
-                let end_pos = record.cigar().end_pos();
+        // Use par_chunks to process the keys in parallel
+        let consensus_sequence = keys.par_chunks(self.num_threads) // Adjust chunk size as needed
+            .map(|key_chunk| {
+                let mut local_consensus = Vec::new();
+                
+                for key in key_chunk {
+                    // Use the key to access records from the HashMap
+                    if let Some(records) = self.records.get(key) {
+                        let mut contig_reads = Vec::new();
+                        let mut current_contig_start = 0;
+                        let mut current_contig_end = 0;
+                        let mut id = 1;
 
-                // 5. Check if the read overlaps with the current contig
-                if start_pos <= current_contig_end {
-                    // 6. If it overlaps, add it to the current contig's reads
-                    contig_reads.push(record);
-                    // Update the contig end position if this read extends beyond the current end
-                    if end_pos > current_contig_end {
-                        current_contig_end = end_pos;
+                        for record in records {
+                            let start_pos = record.pos();
+                            let end_pos = record.cigar().end_pos();
+
+                            if start_pos <= current_contig_end {
+                                contig_reads.push(record.clone());
+                                if end_pos > current_contig_end {
+                                    current_contig_end = end_pos;
+                                }
+                            } else {
+                                if !contig_reads.is_empty() {
+                                    let consensus = self.build_consensus(&contig_reads);
+                                    local_consensus.push(format!(">{}|transcript_{}\n{}", key, id, consensus));
+                                    id += 1;
+                                }
+
+                                contig_reads.clear();
+                                contig_reads.push(record.clone());
+                                current_contig_start = start_pos;
+                                current_contig_end = end_pos;
+                            }
+                        }
+
+                        if !contig_reads.is_empty() {
+                            let consensus = self.build_consensus(&contig_reads);
+                            local_consensus.push(format!(">{}|transcript_{}\n{}", key, id, consensus));
+                        }
                     }
-                } else {
-                    // 7. If it doesn't overlap, process the previous contig
-                    if !contig_reads.is_empty() {
-                        let consensus = self.build_consensus(&contig_reads);
-                        consensus_sequence.push( (format!("{cell}|transcript_{id}"), consensus) );
-                        id +=1;
-                    }
-
-                    // 8. Start a new contig
-                    contig_reads.clear();
-                    contig_reads.push(record);
-                    current_contig_start = start_pos;
-                    current_contig_end = end_pos;
                 }
-            }
+                
+                local_consensus
+            })
+           .flatten() // Flatten the results into a single iterator
+            .collect(); // Collect into the final Vec
 
-
-            // 9. Handle the last set of contig reads
-            if !contig_reads.is_empty() {
-                let consensus = self.build_consensus(&contig_reads);
-                consensus_sequence.push( (format!("{cell}|transcript_{id}"), consensus) );
-            }
-        }
-
-        // 10. Return the assembled consensus sequence
         consensus_sequence
     }
 
     // Helper function to build consensus from a set of overlapping reads
-    pub fn build_consensus( &self, contig_reads:&Vec<&Record> ) -> String {
+    pub fn build_consensus( &self, contig_reads:&Vec<Record> ) -> String {
         // 1. Initialize a vector to hold consensus bases for each position
         let mut consensus_bases: Vec<char> = Vec::new();
 
