@@ -36,8 +36,6 @@ impl BamSubset{
                     .push(record);
                 self.cells.insert(record_barcode);
             }
-        }else {
-            eprintln!("I could not detect the barcode in this BAM record: {record:?}");
         }
     }
 
