@@ -5,7 +5,8 @@ use std::io::{self, Write};
 use bam_aligner::bam_subset::BamSubset;
 use num_cpus;
 
-/// Simple program to assemble a contig sequence from a BAM file
+/// Simple program to assemble a contig sequence from a BAM file.
+/// This is a test and likely not usable at all.
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
