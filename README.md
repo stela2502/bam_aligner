@@ -1,5 +1,9 @@
 [![Rust](https://github.com/stela2502/bam_aligner/actions/workflows/rust.yml/badge.svg?branch=main)](https://github.com/stela2502/bam_aligner/actions/workflows/rust.yml)
 
+# Do not use
+
+This tool is untested and very likely not functional / broken.
+
 # bam_aligner - a tool to construct detected transcripts from 10x bam files
 
 VDJ recombination creates unique Antiboty and T cell receptor genes for each T and B cell.
